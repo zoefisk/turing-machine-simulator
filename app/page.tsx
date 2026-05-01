@@ -1,65 +1,868 @@
-import Image from "next/image";
+"use client";
+
+import type { FormEvent, RefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import StateDiagram from "@/components/StateDiagram";
+import Tape from "@/components/Tape";
+import {
+  createSingleTapeAdditionMachine,
+  type SingleTapeSnapshot,
+} from "@/lib/turing/singleTapeAdditionMachine";
+
+const MAX_INPUT_LENGTH = 9;
+const MOVE_ANIMATION_MS = 250;
+const MOVE_DWELL_MS = 250;
+const SKIP_MOVEMENT_MS = 140;
+const SKIP_MOVE_DWELL_MS = 80;
+const SKIP_STEP_MS = 50;
+
+type InputMode = "binary" | "decimal";
+type VisualizationMode = "diagram" | "tape";
+
+type Session = {
+  machine: ReturnType<typeof createSingleTapeAdditionMachine>;
+  snapshot: SingleTapeSnapshot;
+};
+
+type LoadedInput = {
+  leftBinary: string;
+  leftRaw: string;
+  mode: InputMode;
+  rightBinary: string;
+  rightRaw: string;
+  visualizationMode: VisualizationMode;
+};
+
+type InputConversionResult =
+  | { kind: "success"; binary: string }
+  | { error: string; kind: "error" };
+
+type GuideStep = {
+  body: string;
+  target: RefObject<HTMLElement | null>;
+  title: string;
+};
+
+type ActionCallout = {
+  body: string;
+  title: string;
+};
+
+function buildSession(leftOperand: string, rightOperand: string): Session {
+  const machine = createSingleTapeAdditionMachine(`${leftOperand}c${rightOperand}`);
+
+  return {
+    machine,
+    snapshot: machine.getSnapshot(),
+  };
+}
+
+function buildSessionAtStepCount(
+  leftOperand: string,
+  rightOperand: string,
+  stepCount: number
+): Session {
+  const machine = createSingleTapeAdditionMachine(`${leftOperand}c${rightOperand}`);
+  let snapshot = machine.getSnapshot();
+
+  for (let stepIndex = 0; stepIndex < stepCount; stepIndex += 1) {
+    snapshot = machine.step();
+  }
+
+  return {
+    machine,
+    snapshot,
+  };
+}
+
+function convertInput(rawValue: string, mode: InputMode): InputConversionResult {
+  const trimmedValue = rawValue.trim();
+
+  if (!trimmedValue) {
+    return { error: "Enter a value in both boxes.", kind: "error" };
+  }
+
+  if (trimmedValue.length > MAX_INPUT_LENGTH) {
+    return {
+      error: `Keep each input under ${MAX_INPUT_LENGTH + 1} characters.`,
+      kind: "error",
+    };
+  }
+
+  if (mode === "binary") {
+    if (!/^[01]+$/.test(trimmedValue)) {
+      return { error: "Binary mode only accepts 0s and 1s.", kind: "error" };
+    }
+
+    return { binary: trimmedValue, kind: "success" };
+  }
+
+  if (!/^\d+$/.test(trimmedValue)) {
+    return {
+      error: "Decimal mode only accepts whole numbers.",
+      kind: "error",
+    };
+  }
+
+  return {
+    binary: BigInt(trimmedValue).toString(2),
+    kind: "success",
+  };
+}
+
+function buildSpotlightStyle(target: HTMLElement | null) {
+  if (!target) {
+    return null;
+  }
+
+  const rect = target.getBoundingClientRect();
+
+  return {
+    height: rect.height + 16,
+    left: rect.left - 8,
+    top: rect.top - 8,
+    width: rect.width + 16,
+  };
+}
+
+function buildActionCallout(snapshot: SingleTapeSnapshot): ActionCallout {
+  const columnRuleSummary = snapshot.columnRule
+    ? `${snapshot.columnRule.leftBit} + ${snapshot.columnRule.rightBit} + carry ${snapshot.columnRule.carryIn} = ${
+        snapshot.columnRule.carryOut === 1
+          ? `1${snapshot.columnRule.resultBit}`
+          : `${snapshot.columnRule.resultBit}`
+      }, so write ${snapshot.columnRule.resultBit} and carry ${snapshot.columnRule.carryOut}.`
+    : null;
+
+  if (snapshot.transitionKind === "move") {
+    const direction = snapshot.message.includes("left") ? "left" : "right";
+
+    return {
+      title: "Scanning Across The Tape",
+      body: `The head is traveling ${direction} to reach the next symbol it needs to inspect, restore, or write.`,
+    };
+  }
+
+  if (snapshot.transitionKind === "mark") {
+    return {
+      title: columnRuleSummary ? "Reading And Computing This Column" : "Marking The Current Bit",
+      body: columnRuleSummary
+        ? `${snapshot.message} The rule for this column is: ${columnRuleSummary}`
+        : snapshot.message,
+    };
+  }
+
+  if (snapshot.transitionKind === "write") {
+    return {
+      title: "Writing To The Result Zone",
+      body: columnRuleSummary
+        ? `${snapshot.message} ${columnRuleSummary}`
+        : snapshot.message,
+    };
+  }
+
+  if (snapshot.transitionKind === "restore") {
+    return {
+      title: "Restoring The Tape",
+      body: snapshot.message,
+    };
+  }
+
+  if (snapshot.transitionKind === "compute") {
+    return {
+      title: columnRuleSummary ? "Applying The Binary Addition Rule" : "Updating The Control State",
+      body: columnRuleSummary
+        ? `${snapshot.message} The rule for this column is: ${columnRuleSummary}`
+        : snapshot.message,
+    };
+  }
+
+  return {
+    title: "Machine Halted",
+    body: snapshot.message,
+  };
+}
 
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+  const [inputMode, setInputMode] = useState<InputMode>("binary");
+  const [visualizationMode, setVisualizationMode] =
+    useState<VisualizationMode>("tape");
+  const [draftInputs, setDraftInputs] = useState({
+    left: "",
+    right: "",
+  });
+  const [inputError, setInputError] = useState("");
+  const [loadedInput, setLoadedInput] = useState<LoadedInput | null>(null);
+  const [isAnimatingMove, setIsAnimatingMove] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
+  const [movementKey, setMovementKey] = useState(0);
+  const [currentActionIndex, setCurrentActionIndex] = useState(0);
+  const [actionCallout, setActionCallout] = useState<ActionCallout | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [showSetup, setShowSetup] = useState(true);
+  const [guidePhase, setGuidePhase] = useState<"simulator" | null>(null);
+  const [guideIndex, setGuideIndex] = useState(0);
+  const moveTimeoutRef = useRef<number | null>(null);
+  const skipTimeoutRef = useRef<number | null>(null);
+  const transitionCountRef = useRef(0);
+  const isMovingRef = useRef(false);
+  const movementKeyRef = useRef(0);
+  const actionStepCountsRef = useRef<number[]>([0]);
+  const currentActionIndexRef = useRef(0);
+  const pendingMoveModeRef = useRef<"advance" | "skip" | null>(null);
+  const sessionRef = useRef<Session | null>(null);
+
+  const tapePanelRef = useRef<HTMLDivElement | null>(null);
+  const diagramPanelRef = useRef<HTMLDivElement | null>(null);
+  const controlsRef = useRef<HTMLDivElement | null>(null);
+
+  const simulatorGuideSteps = useMemo<GuideStep[]>(
+    () =>
+      loadedInput?.visualizationMode === "diagram"
+        ? [
+            {
+              title: "This is the active state diagram",
+              body: "The highlighted node shows the control state the machine is currently in, and the brighter arrow shows the last transition it just took.",
+              target: diagramPanelRef,
+            },
+            {
+              title: "Use the controls underneath",
+              body: "Advance steps through the machine, Skip runs the rest very quickly, Reset restarts this input, and Change Input takes you back to the setup screen.",
+              target: controlsRef,
+            },
+          ]
+        : [
+            {
+              title: "This is the whole working tape",
+              body: "The head moves across this one tape, rewrites symbols directly on it, and eventually leaves the final result on the right side.",
+              target: tapePanelRef,
+            },
+            {
+              title: "Watch for separators and temporary markers",
+              body: "The `c` splits the two inputs, the `|` starts the result zone, and temporary symbols like `x` and `y` appear on the tape while the machine works.",
+              target: tapePanelRef,
+            },
+            {
+              title: "Use the controls underneath",
+              body: "Advance steps through the machine, Skip runs the rest very quickly, Reset restarts this input, and Change Input takes you back to the setup screen.",
+              target: controlsRef,
+            },
+          ],
+    [loadedInput?.visualizationMode]
+  );
+
+  const currentGuideSteps = guidePhase === "simulator" ? simulatorGuideSteps : [];
+  const currentGuideStep = guidePhase ? currentGuideSteps[guideIndex] : undefined;
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  function resetActionHistory() {
+    transitionCountRef.current = 0;
+    actionStepCountsRef.current = [0];
+    currentActionIndexRef.current = 0;
+    setCurrentActionIndex(0);
+  }
+
+  function commitActionBoundary(stepCount: number) {
+    const baseHistory = actionStepCountsRef.current.slice(
+      0,
+      currentActionIndexRef.current + 1
+    );
+
+    if (baseHistory[baseHistory.length - 1] === stepCount) {
+      return;
+    }
+
+    const nextHistory = [...baseHistory, stepCount];
+
+    actionStepCountsRef.current = nextHistory;
+    currentActionIndexRef.current = nextHistory.length - 1;
+    setCurrentActionIndex(nextHistory.length - 1);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (moveTimeoutRef.current !== null) {
+        window.clearTimeout(moveTimeoutRef.current);
+      }
+
+      if (skipTimeoutRef.current !== null) {
+        window.clearTimeout(skipTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function clearTimers() {
+    if (moveTimeoutRef.current !== null) {
+      window.clearTimeout(moveTimeoutRef.current);
+      moveTimeoutRef.current = null;
+    }
+
+    if (skipTimeoutRef.current !== null) {
+      window.clearTimeout(skipTimeoutRef.current);
+      skipTimeoutRef.current = null;
+    }
+
+    pendingMoveModeRef.current = null;
+  }
+
+  function handleApplyInput(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const leftConversion = convertInput(draftInputs.left, inputMode);
+    const rightConversion = convertInput(draftInputs.right, inputMode);
+
+    if (leftConversion.kind === "error") {
+      setInputError(leftConversion.error);
+      return;
+    }
+
+    if (rightConversion.kind === "error") {
+      setInputError(rightConversion.error);
+      return;
+    }
+
+    const nextLoadedInput: LoadedInput = {
+      leftBinary: leftConversion.binary,
+      leftRaw: draftInputs.left.trim(),
+      mode: inputMode,
+      rightBinary: rightConversion.binary,
+      rightRaw: draftInputs.right.trim(),
+      visualizationMode,
+    };
+    const nextSession = buildSession(
+      nextLoadedInput.leftBinary,
+      nextLoadedInput.rightBinary
+    );
+
+    clearTimers();
+    setLoadedInput(nextLoadedInput);
+    sessionRef.current = nextSession;
+    setSession(nextSession);
+    setIsAnimatingMove(false);
+    setIsSkipping(false);
+    isMovingRef.current = false;
+    resetActionHistory();
+    movementKeyRef.current = 0;
+    setMovementKey(0);
+    setActionCallout(buildActionCallout(nextSession.snapshot));
+    setInputError("");
+    setShowSetup(false);
+    setGuidePhase("simulator");
+    setGuideIndex(0);
+  }
+
+  function handleReset() {
+    if (!loadedInput) {
+      return;
+    }
+
+    clearTimers();
+    setIsAnimatingMove(false);
+    setIsSkipping(false);
+    isMovingRef.current = false;
+    resetActionHistory();
+    movementKeyRef.current = 0;
+    setMovementKey(0);
+    const nextSession = buildSession(loadedInput.leftBinary, loadedInput.rightBinary);
+    sessionRef.current = nextSession;
+    setSession(nextSession);
+    setActionCallout(buildActionCallout(nextSession.snapshot));
+  }
+
+  function queueSkipStep(delay: number) {
+    skipTimeoutRef.current = window.setTimeout(() => {
+      skipTimeoutRef.current = null;
+      runStep("skip");
+    }, delay);
+  }
+
+  function queueMoveContinuation(mode: "advance" | "skip", delay: number) {
+    moveTimeoutRef.current = window.setTimeout(() => {
+      moveTimeoutRef.current = null;
+      runStep(mode);
+    }, delay);
+  }
+
+  function runStep(mode: "advance" | "skip" = "advance") {
+    const currentSession = sessionRef.current;
+
+    if (!currentSession) {
+      setIsAnimatingMove(false);
+      setIsSkipping(false);
+      isMovingRef.current = false;
+      return;
+    }
+
+    const nextSnapshot = currentSession.machine.step();
+    transitionCountRef.current += 1;
+    const nextSession = {
+      machine: currentSession.machine,
+      snapshot: nextSnapshot,
+    };
+
+    sessionRef.current = nextSession;
+    setSession(nextSession);
+
+    if (nextSnapshot.transitionKind !== "move") {
+      pendingMoveModeRef.current = null;
+      isMovingRef.current = false;
+      setIsAnimatingMove(false);
+      commitActionBoundary(transitionCountRef.current);
+      setActionCallout(buildActionCallout(nextSnapshot));
+
+      if (mode === "skip") {
+        if (nextSnapshot.state === "HALT") {
+          setIsSkipping(false);
+          skipTimeoutRef.current = null;
+          return;
+        }
+
+        queueSkipStep(SKIP_STEP_MS);
+      }
+
+      return;
+    }
+
+    if (!isMovingRef.current) {
+      setActionCallout(buildActionCallout(nextSnapshot));
+    }
+
+    isMovingRef.current = true;
+    setIsAnimatingMove(true);
+    clearTimers();
+    pendingMoveModeRef.current = mode;
+
+    if (loadedInput?.visualizationMode === "diagram") {
+      queueMoveContinuation(
+        mode,
+        (mode === "skip" ? SKIP_MOVEMENT_MS + SKIP_MOVE_DWELL_MS : MOVE_ANIMATION_MS + MOVE_DWELL_MS)
+      );
+      return;
+    }
+
+    const nextMovementKey = movementKeyRef.current + 1;
+    movementKeyRef.current = nextMovementKey;
+    setMovementKey(nextMovementKey);
+  }
+
+  function handleStep() {
+    if (isAnimatingMove || isSkipping || guidePhase) {
+      return;
+    }
+
+    runStep("advance");
+  }
+
+  function handleSkip() {
+    if (isAnimatingMove || isSkipping || guidePhase) {
+      return;
+    }
+
+    clearTimers();
+    setIsAnimatingMove(false);
+    setIsSkipping(true);
+    runStep("skip");
+  }
+
+  function handleTapeMovementComplete(completedMovementKey: number) {
+    if (
+      completedMovementKey !== movementKeyRef.current ||
+      !pendingMoveModeRef.current
+    ) {
+      return;
+    }
+
+    const mode = pendingMoveModeRef.current;
+    pendingMoveModeRef.current = null;
+
+    queueMoveContinuation(
+      mode,
+      mode === "skip" ? SKIP_MOVE_DWELL_MS : MOVE_DWELL_MS
+    );
+  }
+
+  function handleBack() {
+    if (
+      controlsLocked ||
+      !loadedInput ||
+      currentActionIndexRef.current === 0
+    ) {
+      return;
+    }
+
+    clearTimers();
+    setIsAnimatingMove(false);
+    setIsSkipping(false);
+    isMovingRef.current = false;
+    movementKeyRef.current = 0;
+    setMovementKey(0);
+
+    const nextActionIndex = currentActionIndexRef.current - 1;
+    const targetStepCount = actionStepCountsRef.current[nextActionIndex] ?? 0;
+    const nextSession = buildSessionAtStepCount(
+      loadedInput.leftBinary,
+      loadedInput.rightBinary,
+      targetStepCount
+    );
+
+    transitionCountRef.current = targetStepCount;
+    currentActionIndexRef.current = nextActionIndex;
+    setCurrentActionIndex(nextActionIndex);
+    sessionRef.current = nextSession;
+    setSession(nextSession);
+    setActionCallout(buildActionCallout(nextSession.snapshot));
+  }
+
+  function handleStartOver() {
+    clearTimers();
+    setShowSetup(true);
+    setIsAnimatingMove(false);
+    setIsSkipping(false);
+    isMovingRef.current = false;
+    setInputError("");
+    setActionCallout(null);
+    setGuidePhase(null);
+    setGuideIndex(0);
+    setDraftInputs({
+      left: loadedInput?.leftRaw ?? draftInputs.left,
+      right: loadedInput?.rightRaw ?? draftInputs.right,
+    });
+    setInputMode(loadedInput?.mode ?? inputMode);
+    setVisualizationMode(loadedInput?.visualizationMode ?? visualizationMode);
+  }
+
+  function handleNextGuide() {
+    if (!guidePhase) {
+      return;
+    }
+
+    if (guideIndex >= currentGuideSteps.length - 1) {
+      setGuidePhase(null);
+      setGuideIndex(0);
+      return;
+    }
+
+    setGuideIndex((currentValue) => currentValue + 1);
+  }
+
+  function handlePreviousGuide() {
+    setGuideIndex((currentValue) => Math.max(0, currentValue - 1));
+  }
+
+  function handleDismissGuide() {
+    setGuidePhase(null);
+    setGuideIndex(0);
+  }
+
+  if (showSetup || !session || !loadedInput) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-4 py-8 text-[var(--ink)] sm:px-6">
+        <section className="lab-panel relative w-full max-w-xl px-6 py-7 sm:px-8 sm:py-8">
+          <div className="space-y-3">
+            <p className="ink-kicker text-xs">Single-Tape Binary Addition</p>
+            <h1 className="text-3xl font-semibold uppercase tracking-[0.08em] sm:text-4xl">
+              Enter Two Inputs
+            </h1>
+            <p className="max-w-lg text-sm leading-6 text-[var(--ink-soft)] sm:text-base">
+              Choose binary or decimal input. Decimal values will be converted
+              into binary before the tape loads. Each input must be under{" "}
+              {MAX_INPUT_LENGTH + 1} characters.
+            </p>
+          </div>
+
+          <form className="mt-6 space-y-5" onSubmit={handleApplyInput}>
+            <div className="space-y-2">
+              <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--olive)]">
+                Input Mode
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInputMode("binary")}
+                  className={[
+                    "machine-button rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em]",
+                    inputMode === "binary" ? "" : "machine-button--secondary",
+                  ].join(" ")}
+                >
+                  Binary
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputMode("decimal")}
+                  className={[
+                    "machine-button rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em]",
+                    inputMode === "decimal" ? "" : "machine-button--secondary",
+                  ].join(" ")}
+                >
+                  Decimal
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--olive)]">
+                Visualization
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVisualizationMode("tape")}
+                  className={[
+                    "machine-button rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em]",
+                    visualizationMode === "tape" ? "" : "machine-button--secondary",
+                  ].join(" ")}
+                >
+                  Tape
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisualizationMode("diagram")}
+                  className={[
+                    "machine-button rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em]",
+                    visualizationMode === "diagram" ? "" : "machine-button--secondary",
+                  ].join(" ")}
+                >
+                  Diagram
+                </button>
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--olive)]">
+                First input
+              </span>
+              <input
+                type="text"
+                autoComplete="off"
+                inputMode="numeric"
+                maxLength={MAX_INPUT_LENGTH}
+                value={draftInputs.left}
+                onChange={(event) =>
+                  setDraftInputs((currentValue) => ({
+                    ...currentValue,
+                    left: event.target.value,
+                  }))
+                }
+                className="mt-1.5 w-full border border-[color:var(--rule)] bg-[rgba(250,245,230,0.72)] px-3 py-3 font-[family-name:var(--font-mono)] text-lg tracking-[0.12em] text-[var(--ink)] outline-none placeholder:text-[var(--olive-soft)] focus:border-[rgba(168,125,50,0.72)]"
+                placeholder={inputMode === "binary" ? "1011" : "13"}
+              />
+            </label>
+
+            <label className="block">
+              <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--olive)]">
+                Second input
+              </span>
+              <input
+                type="text"
+                autoComplete="off"
+                inputMode="numeric"
+                maxLength={MAX_INPUT_LENGTH}
+                value={draftInputs.right}
+                onChange={(event) =>
+                  setDraftInputs((currentValue) => ({
+                    ...currentValue,
+                    right: event.target.value,
+                  }))
+                }
+                className="mt-1.5 w-full border border-[color:var(--rule)] bg-[rgba(250,245,230,0.72)] px-3 py-3 font-[family-name:var(--font-mono)] text-lg tracking-[0.12em] text-[var(--ink)] outline-none placeholder:text-[var(--olive-soft)] focus:border-[rgba(168,125,50,0.72)]"
+                placeholder={inputMode === "binary" ? "110" : "6"}
+              />
+            </label>
+
+            {inputError ? (
+              <p className="border border-[rgba(138,75,42,0.24)] bg-[rgba(173,110,70,0.08)] px-3 py-2 text-sm text-[color:#8a4b2a]">
+                {inputError}
+              </p>
+            ) : null}
+
+            <button
+              type="submit"
+              className="machine-button rounded-none px-5 py-3 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.2em]"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+              Load Working Tape
+            </button>
+          </form>
+        </section>
       </main>
-    </div>
+    );
+  }
+
+  const { snapshot } = session;
+  const hasHalted = snapshot.state === "HALT";
+  const diagramRefreshToken = `${loadedInput.leftBinary}-${loadedInput.rightBinary}`;
+  const guideTarget = currentGuideStep?.target.current ?? null;
+  const spotlightStyle = guidePhase ? buildSpotlightStyle(guideTarget) : null;
+  const activeMovementMs = isSkipping ? SKIP_MOVEMENT_MS : MOVE_ANIMATION_MS;
+  const controlsLocked = isAnimatingMove || isSkipping || guidePhase !== null;
+
+  return (
+    <main className="flex min-h-screen items-center justify-center px-4 py-6 text-[var(--ink)] sm:px-6">
+      <div className="w-full max-w-6xl">
+        <section className="lab-panel relative px-4 py-6 sm:px-8 sm:py-8">
+          {loadedInput.visualizationMode === "diagram" ? (
+            <div
+              ref={diagramPanelRef}
+              className="mx-auto flex w-full max-w-5xl flex-col items-center"
+            >
+              <StateDiagram
+                key={diagramRefreshToken}
+                currentState={snapshot.state}
+                lastTransition={snapshot.lastTransition}
+                refreshToken={diagramRefreshToken}
+              />
+            </div>
+          ) : (
+            <div
+              ref={tapePanelRef}
+              className="mx-auto flex w-full max-w-5xl flex-col items-center"
+            >
+              <Tape
+                label="Working Tape"
+                descriptor="left input c right input | result zone"
+                cells={snapshot.tape}
+                headIndex={snapshot.head}
+                highlightedIndex={snapshot.highlightedIndex}
+                followHead
+                movementKey={movementKey}
+                movementMs={activeMovementMs}
+                onMovementComplete={handleTapeMovementComplete}
+                emphasized
+                centered
+                showMeta={false}
+                size="large"
+              />
+            </div>
+          )}
+
+          {actionCallout ? (
+            <div className="mx-auto mt-5 w-full max-w-3xl border border-[rgba(79,58,24,0.32)] bg-[rgba(251,246,232,0.96)] px-5 py-4 shadow-[0_14px_28px_rgba(52,38,14,0.12)]">
+              <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
+                Current Action
+              </p>
+              <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">
+                {actionCallout.title}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+                {actionCallout.body}
+              </p>
+            </div>
+          ) : null}
+
+          <div
+            ref={controlsRef}
+            className="mt-8 flex flex-wrap items-center justify-center gap-2"
+          >
+            <button
+              onClick={handleStartOver}
+              disabled={controlsLocked}
+              className="machine-button machine-button--secondary rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Change Input
+            </button>
+            <button
+              onClick={handleReset}
+              disabled={controlsLocked}
+              className="machine-button machine-button--secondary rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setGuidePhase("simulator");
+                setGuideIndex(0);
+              }}
+              disabled={controlsLocked}
+              className="machine-button machine-button--secondary rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Help
+            </button>
+            <button
+              onClick={handleBack}
+              disabled={currentActionIndex === 0 || controlsLocked}
+              className="machine-button machine-button--secondary rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleStep}
+              disabled={hasHalted || controlsLocked}
+              className="machine-button rounded-none px-5 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {isAnimatingMove ? "Moving..." : "Advance"}
+            </button>
+            <button
+              onClick={handleSkip}
+              disabled={hasHalted || controlsLocked}
+              className="machine-button rounded-none px-5 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {isSkipping ? "Skipping..." : "Skip"}
+            </button>
+          </div>
+
+          {guidePhase === "simulator" ? (
+            <>
+              {spotlightStyle ? (
+                <div
+                  className="pointer-events-none fixed z-50 rounded-sm border-[3px] border-[rgba(208,175,105,0.98)] shadow-[0_0_0_9999px_rgba(31,26,18,0.18),0_0_30px_rgba(208,175,105,0.18)]"
+                  style={spotlightStyle}
+                />
+              ) : null}
+              <div className="fixed bottom-5 right-5 z-50 w-[min(360px,calc(100vw-2rem))] border-2 border-[rgba(79,58,24,0.5)] bg-[rgba(251,246,232,0.99)] p-5 shadow-[0_24px_48px_rgba(52,38,14,0.3)]">
+                <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
+                  Guide {guideIndex + 1} / {currentGuideSteps.length}
+                </p>
+                <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">
+                  {currentGuideStep?.title}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+                  {currentGuideStep?.body}
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDismissGuide}
+                    className="machine-button machine-button--secondary rounded-none px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] font-bold uppercase tracking-[0.18em]"
+                  >
+                    Skip Tour
+                  </button>
+                  {guideIndex > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handlePreviousGuide}
+                      className="machine-button machine-button--secondary rounded-none px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] font-bold uppercase tracking-[0.18em]"
+                    >
+                      Back
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleNextGuide}
+                    className="machine-button rounded-none px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] font-bold uppercase tracking-[0.18em]"
+                  >
+                    {guideIndex === currentGuideSteps.length - 1 ? "Done" : "Next"}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </section>
+
+        {loadedInput.visualizationMode === "tape" ? (
+          <div className="hidden">
+            <StateDiagram
+              key={diagramRefreshToken}
+              currentState={snapshot.state}
+              lastTransition={snapshot.lastTransition}
+              refreshToken={diagramRefreshToken}
+            />
+          </div>
+        ) : null}
+      </div>
+    </main>
   );
 }
