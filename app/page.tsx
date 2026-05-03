@@ -49,6 +49,13 @@ type ActionCallout = {
   title: string;
 };
 
+function buildInitialPositionCallout(): ActionCallout {
+  return {
+    title: "Head Positioned For The First Column",
+    body: "The machine begins with its head resting on the least-significant bit of the left input. Advance again to watch it start marking and processing that first column.",
+  };
+}
+
 function buildColumnRuleSummary(snapshot: SingleTapeSnapshot) {
   if (!snapshot.columnRule) {
     return null;
@@ -210,6 +217,7 @@ export default function Home() {
   const [currentActionIndex, setCurrentActionIndex] = useState(0);
   const [actionCallout, setActionCallout] = useState<ActionCallout | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [showInitialHead, setShowInitialHead] = useState(false);
   const [showSetup, setShowSetup] = useState(true);
   const [guidePhase, setGuidePhase] = useState<"simulator" | null>(null);
   const [guideIndex, setGuideIndex] = useState(0);
@@ -369,6 +377,7 @@ export default function Home() {
     movementKeyRef.current = 0;
     setMovementKey(0);
     setActionCallout(null);
+    setShowInitialHead(false);
     setInputError("");
     setShowSetup(false);
     setGuidePhase("simulator");
@@ -391,6 +400,7 @@ export default function Home() {
     sessionRef.current = nextSession;
     setSession(nextSession);
     setActionCallout(null);
+    setShowInitialHead(false);
   }
 
   function queueSkipStep(delay: number) {
@@ -474,6 +484,12 @@ export default function Home() {
       return;
     }
 
+    if (!showInitialHead && currentActionIndexRef.current === 0) {
+      setShowInitialHead(true);
+      setActionCallout(buildInitialPositionCallout());
+      return;
+    }
+
     runStep("advance");
   }
 
@@ -549,8 +565,20 @@ export default function Home() {
     if (
       controlsLocked ||
       !loadedInput ||
-      currentActionIndexRef.current === 0
+      (currentActionIndexRef.current === 0 && !showInitialHead)
     ) {
+      return;
+    }
+
+    if (currentActionIndexRef.current === 0 && showInitialHead) {
+      clearTimers();
+      setIsAnimatingMove(false);
+      setIsSkipping(false);
+      isMovingRef.current = false;
+      movementKeyRef.current = 0;
+      setMovementKey(0);
+      setShowInitialHead(false);
+      setActionCallout(null);
       return;
     }
 
@@ -575,7 +603,11 @@ export default function Home() {
     sessionRef.current = nextSession;
     setSession(nextSession);
     setActionCallout(
-      nextActionIndex === 0 ? null : buildActionCallout(nextSession.snapshot)
+      nextActionIndex === 0
+        ? showInitialHead
+          ? buildInitialPositionCallout()
+          : null
+        : buildActionCallout(nextSession.snapshot)
     );
   }
 
@@ -761,7 +793,7 @@ export default function Home() {
   const spotlightStyle = guidePhase ? buildSpotlightStyle(guideTarget) : null;
   const activeMovementMs = isSkipping ? SKIP_MOVEMENT_MS : MOVE_ANIMATION_MS;
   const controlsLocked = isAnimatingMove || isSkipping || guidePhase !== null;
-  const hasStarted = currentActionIndex > 0;
+  const hasStarted = showInitialHead || currentActionIndex > 0;
   const diagramResultCells = snapshot.tape.slice(snapshot.resultStart);
   const diagramResultBinary = diagramResultCells.join("").replace(/^_+/, "") || "0";
   const diagramResultProgress = diagramResultCells
