@@ -184,6 +184,10 @@ function buildActionCallout(snapshot: SingleTapeSnapshot): ActionCallout {
   };
 }
 
+function sanitizeNumericInput(rawValue: string) {
+  return rawValue.replace(/[^0-9]/g, "");
+}
+
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("binary");
   const [visualizationMode, setVisualizationMode] =
@@ -254,6 +258,10 @@ export default function Home() {
 
   const currentGuideSteps = guidePhase === "simulator" ? simulatorGuideSteps : [];
   const currentGuideStep = guidePhase ? currentGuideSteps[guideIndex] : undefined;
+  const canLoadWorkingTape =
+    draftInputs.left.trim().length > 0 && draftInputs.right.trim().length > 0;
+  const loadButtonLabel =
+    visualizationMode === "diagram" ? "Load Diagram View" : "Load Tape View";
 
   useEffect(() => {
     sessionRef.current = session;
@@ -644,7 +652,7 @@ export default function Home() {
                 onChange={(event) =>
                   setDraftInputs((currentValue) => ({
                     ...currentValue,
-                    left: event.target.value,
+                    left: sanitizeNumericInput(event.target.value),
                   }))
                 }
                 className="mt-1.5 w-full border border-[color:var(--rule)] bg-[rgba(250,245,230,0.72)] px-3 py-3 font-[family-name:var(--font-mono)] text-lg tracking-[0.12em] text-[var(--ink)] outline-none placeholder:text-[var(--olive-soft)] focus:border-[rgba(168,125,50,0.72)]"
@@ -665,7 +673,7 @@ export default function Home() {
                 onChange={(event) =>
                   setDraftInputs((currentValue) => ({
                     ...currentValue,
-                    right: event.target.value,
+                    right: sanitizeNumericInput(event.target.value),
                   }))
                 }
                 className="mt-1.5 w-full border border-[color:var(--rule)] bg-[rgba(250,245,230,0.72)] px-3 py-3 font-[family-name:var(--font-mono)] text-lg tracking-[0.12em] text-[var(--ink)] outline-none placeholder:text-[var(--olive-soft)] focus:border-[rgba(168,125,50,0.72)]"
@@ -681,9 +689,10 @@ export default function Home() {
 
             <button
               type="submit"
-              className="machine-button rounded-none px-5 py-3 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.2em]"
+              disabled={!canLoadWorkingTape}
+              className="machine-button rounded-none px-5 py-3 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.2em] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Load Working Tape
+              {loadButtonLabel}
             </button>
           </form>
         </section>
