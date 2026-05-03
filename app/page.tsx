@@ -244,7 +244,7 @@ export default function Home() {
             },
             {
               title: "Watch for separators and temporary markers",
-              body: "The `c` splits the two inputs, the `|` starts the result zone, and temporary symbols like `x` and `y` appear on the tape while the machine works.",
+              body: "The `c` splits the two inputs, the `|` starts the result zone, `x` marks the current left-side bit, and `y` marks the current right-side bit while the machine works.",
               target: tapePanelRef,
             },
             {
@@ -356,7 +356,7 @@ export default function Home() {
     resetActionHistory();
     movementKeyRef.current = 0;
     setMovementKey(0);
-    setActionCallout(buildActionCallout(nextSession.snapshot));
+    setActionCallout(null);
     setInputError("");
     setShowSetup(false);
     setGuidePhase("simulator");
@@ -378,7 +378,7 @@ export default function Home() {
     const nextSession = buildSession(loadedInput.leftBinary, loadedInput.rightBinary);
     sessionRef.current = nextSession;
     setSession(nextSession);
-    setActionCallout(buildActionCallout(nextSession.snapshot));
+    setActionCallout(null);
   }
 
   function queueSkipStep(delay: number) {
@@ -476,6 +476,46 @@ export default function Home() {
     runStep("skip");
   }
 
+  function handleFinishNow() {
+    if (!isSkipping) {
+      return;
+    }
+
+    clearTimers();
+    setIsAnimatingMove(false);
+    setIsSkipping(false);
+    isMovingRef.current = false;
+    pendingMoveModeRef.current = null;
+    movementKeyRef.current = 0;
+    setMovementKey(0);
+
+    const currentSession = sessionRef.current;
+
+    if (!currentSession) {
+      return;
+    }
+
+    let nextSnapshot = currentSession.snapshot;
+
+    while (nextSnapshot.state !== "HALT") {
+      nextSnapshot = currentSession.machine.step();
+      transitionCountRef.current += 1;
+
+      if (nextSnapshot.transitionKind !== "move") {
+        commitActionBoundary(transitionCountRef.current);
+      }
+    }
+
+    const nextSession = {
+      machine: currentSession.machine,
+      snapshot: nextSnapshot,
+    };
+
+    sessionRef.current = nextSession;
+    setSession(nextSession);
+    setActionCallout(buildActionCallout(nextSnapshot));
+  }
+
   function handleTapeMovementComplete(completedMovementKey: number) {
     if (
       completedMovementKey !== movementKeyRef.current ||
@@ -522,7 +562,9 @@ export default function Home() {
     setCurrentActionIndex(nextActionIndex);
     sessionRef.current = nextSession;
     setSession(nextSession);
-    setActionCallout(buildActionCallout(nextSession.snapshot));
+    setActionCallout(
+      nextActionIndex === 0 ? null : buildActionCallout(nextSession.snapshot)
+    );
   }
 
   function handleStartOver() {
@@ -707,6 +749,7 @@ export default function Home() {
   const spotlightStyle = guidePhase ? buildSpotlightStyle(guideTarget) : null;
   const activeMovementMs = isSkipping ? SKIP_MOVEMENT_MS : MOVE_ANIMATION_MS;
   const controlsLocked = isAnimatingMove || isSkipping || guidePhase !== null;
+  const hasStarted = currentActionIndex > 0;
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-6 text-[var(--ink)] sm:px-6">
@@ -719,8 +762,8 @@ export default function Home() {
             >
               <StateDiagram
                 key={diagramRefreshToken}
-                currentState={snapshot.state}
-                lastTransition={snapshot.lastTransition}
+                currentState={hasStarted ? snapshot.state : undefined}
+                lastTransition={hasStarted ? snapshot.lastTransition : undefined}
                 refreshToken={diagramRefreshToken}
               />
             </div>
@@ -733,8 +776,8 @@ export default function Home() {
                 label="Working Tape"
                 descriptor="left input c right input | result zone"
                 cells={snapshot.tape}
-                headIndex={snapshot.head}
-                highlightedIndex={snapshot.highlightedIndex}
+                headIndex={hasStarted ? snapshot.head : -1}
+                highlightedIndex={hasStarted ? snapshot.highlightedIndex : undefined}
                 followHead
                 movementKey={movementKey}
                 movementMs={activeMovementMs}
@@ -811,6 +854,14 @@ export default function Home() {
             >
               {isSkipping ? "Skipping..." : "Skip"}
             </button>
+            {isSkipping ? (
+              <button
+                onClick={handleFinishNow}
+                className="machine-button rounded-none px-5 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em]"
+              >
+                Give Me My Answer Now!
+              </button>
+            ) : null}
           </div>
 
           {guidePhase === "simulator" ? (
@@ -865,8 +916,8 @@ export default function Home() {
           <div className="hidden">
             <StateDiagram
               key={diagramRefreshToken}
-              currentState={snapshot.state}
-              lastTransition={snapshot.lastTransition}
+              currentState={hasStarted ? snapshot.state : undefined}
+              lastTransition={hasStarted ? snapshot.lastTransition : undefined}
               refreshToken={diagramRefreshToken}
             />
           </div>

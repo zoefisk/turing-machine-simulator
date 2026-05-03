@@ -16,7 +16,7 @@ import {
 import type { SingleTapeState } from "@/lib/turing/singleTapeAdditionMachine";
 
 type StateDiagramProps = {
-  currentState: SingleTapeState;
+  currentState?: SingleTapeState;
   lastTransition?: string;
   refreshToken?: string;
 };

@@ -84,13 +84,13 @@ export function createSingleTapeAdditionMachine(input: string) {
 
   function markLeftBit(index: number) {
     const bit = tape[index] === "1" ? 1 : 0;
-    tape[index] = bit === 1 ? "y" : "x";
+    tape[index] = "x";
     return bit as 0 | 1;
   }
 
   function markRightBit(index: number) {
     const bit = tape[index] === "1" ? 1 : 0;
-    tape[index] = bit === 1 ? "y" : "x";
+    tape[index] = "y";
     return bit as 0 | 1;
   }
 
