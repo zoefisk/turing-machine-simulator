@@ -9,7 +9,7 @@ import {
   ReactFlow,
   useNodesInitialized,
   useReactFlow,
-  type Edge,
+  type BuiltInEdge,
   type Node,
 } from "@xyflow/react";
 
@@ -21,7 +21,7 @@ type StateDiagramProps = {
   refreshToken?: string;
 };
 
-const nodeSize = 72;
+const nodeSize = 88;
 
 function DiagramViewportSync({ refreshToken }: { refreshToken?: string }) {
   const nodesInitialized = useNodesInitialized();
@@ -50,7 +50,7 @@ function DiagramViewportSync({ refreshToken }: { refreshToken?: string }) {
 const baseNodes: Node[] = [
   {
     id: "START",
-    position: { x: 20, y: 118 },
+    position: { x: 28, y: 202 },
     data: { label: "" },
     sourcePosition: Position.Right,
     targetPosition: Position.Left,
@@ -62,42 +62,55 @@ const baseNodes: Node[] = [
   },
   {
     id: "SEEK_LEFT",
-    position: { x: 120, y: 84 },
+    position: { x: 170, y: 126 },
     data: { label: "q0" },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
   },
   {
     id: "SEEK_RIGHT",
-    position: { x: 330, y: 84 },
+    position: { x: 500, y: 68 },
     data: { label: "q1" },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Top,
   },
   {
     id: "SEEK_RESULT",
-    position: { x: 540, y: 84 },
+    position: { x: 860, y: 68 },
     data: { label: "q2" },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Top,
   },
   {
     id: "SEEK_RIGHT_MARK",
-    position: { x: 750, y: 84 },
+    position: { x: 1210, y: 126 },
     data: { label: "q3" },
+    sourcePosition: Position.Bottom,
+    targetPosition: Position.Top,
   },
   {
     id: "SEEK_LEFT_MARK",
-    position: { x: 750, y: 204 },
+    position: { x: 1210, y: 374 },
     data: { label: "q4" },
+    sourcePosition: Position.Left,
+    targetPosition: Position.Top,
   },
   {
     id: "SEEK_FINAL_RESULT",
-    position: { x: 330, y: 204 },
+    position: { x: 500, y: 374 },
     data: { label: "q6" },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Top,
   },
   {
     id: "HALT",
-    position: { x: 1020, y: 84 },
+    position: { x: 1600, y: 126 },
     data: { label: "qh", isHalt: true },
+    targetPosition: Position.Top,
   },
 ];
 
-const baseEdges: Edge[] = [
+const baseEdges: BuiltInEdge[] = [
   {
     id: "start-q0",
     source: "START",
@@ -111,13 +124,19 @@ const baseEdges: Edge[] = [
     target: "SEEK_RIGHT",
     label: "mark lhs / implicit 0",
     type: "default",
+    pathOptions: {
+      curvature: 0.16,
+    },
   },
   {
     id: "q1-q2",
     source: "SEEK_RIGHT",
     target: "SEEK_RESULT",
-    label: "mark rhs / compute",
+    label: "mark rhs + compute",
     type: "default",
+    pathOptions: {
+      curvature: 0.16,
+    },
   },
   {
     id: "q2-q3",
@@ -125,6 +144,9 @@ const baseEdges: Edge[] = [
     target: "SEEK_RIGHT_MARK",
     label: "write result bit",
     type: "default",
+    pathOptions: {
+      curvature: 0.16,
+    },
   },
   {
     id: "q3-q4",
@@ -132,6 +154,9 @@ const baseEdges: Edge[] = [
     target: "SEEK_LEFT_MARK",
     label: "restore rhs",
     type: "smoothstep",
+    pathOptions: {
+      offset: 28,
+    },
   },
   {
     id: "q5-q0",
@@ -139,13 +164,19 @@ const baseEdges: Edge[] = [
     target: "SEEK_LEFT",
     label: "restore lhs / next column",
     type: "smoothstep",
+    pathOptions: {
+      offset: 34,
+    },
   },
   {
     id: "q0-q6",
     source: "SEEK_LEFT",
     target: "SEEK_FINAL_RESULT",
     label: "final carry",
-    type: "default",
+    type: "smoothstep",
+    pathOptions: {
+      offset: 22,
+    },
   },
   {
     id: "q0-halt",
@@ -153,6 +184,9 @@ const baseEdges: Edge[] = [
     target: "HALT",
     label: "done",
     type: "smoothstep",
+    pathOptions: {
+      offset: 30,
+    },
   },
   {
     id: "q6-halt",
@@ -160,6 +194,9 @@ const baseEdges: Edge[] = [
     target: "HALT",
     label: "write 1",
     type: "smoothstep",
+    pathOptions: {
+      offset: 42,
+    },
   },
 ];
 
@@ -210,7 +247,7 @@ export default function StateDiagram({
     };
   });
 
-  const edges: Edge[] = baseEdges.map((edge) => {
+  const edges: BuiltInEdge[] = baseEdges.map((edge) => {
     const isActive = edge.id === lastTransition;
 
     return {
@@ -231,7 +268,7 @@ export default function StateDiagram({
       labelStyle: {
         fill: "#4e5a44",
         fontFamily: "var(--font-mono)",
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 700,
         letterSpacing: "0.08em",
         textTransform: "uppercase",
@@ -248,12 +285,12 @@ export default function StateDiagram({
   });
 
   return (
-    <div className="state-diagram lab-grid h-[240px] w-full overflow-hidden border border-[color:var(--rule)] bg-[linear-gradient(180deg,rgba(250,245,232,0.92),rgba(236,225,197,0.9))] shadow-[inset_0_1px_0_rgba(255,250,239,0.75),0_10px_24px_rgba(70,52,21,0.08)] sm:h-[280px] lg:h-[320px]">
+    <div className="state-diagram lab-grid h-[360px] w-full overflow-hidden border border-[color:var(--rule)] bg-[linear-gradient(180deg,rgba(250,245,232,0.92),rgba(236,225,197,0.9))] shadow-[inset_0_1px_0_rgba(255,250,239,0.75),0_10px_24px_rgba(70,52,21,0.08)] sm:h-[420px] lg:h-[500px]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         fitView
-        fitViewOptions={{ padding: 0.18 }}
+        fitViewOptions={{ padding: 0.12 }}
         panOnDrag={false}
         zoomOnScroll={false}
         zoomOnPinch={false}

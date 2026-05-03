@@ -49,6 +49,18 @@ type ActionCallout = {
   title: string;
 };
 
+function buildColumnRuleSummary(snapshot: SingleTapeSnapshot) {
+  if (!snapshot.columnRule) {
+    return null;
+  }
+
+  return `${snapshot.columnRule.leftBit} + ${snapshot.columnRule.rightBit} + carry ${snapshot.columnRule.carryIn} = ${
+    snapshot.columnRule.carryOut === 1
+      ? `1${snapshot.columnRule.resultBit}`
+      : `${snapshot.columnRule.resultBit}`
+  }, so write ${snapshot.columnRule.resultBit} and carry ${snapshot.columnRule.carryOut}.`;
+}
+
 function buildSession(leftOperand: string, rightOperand: string): Session {
   const machine = createSingleTapeAdditionMachine(`${leftOperand}c${rightOperand}`);
 
@@ -127,13 +139,7 @@ function buildSpotlightStyle(target: HTMLElement | null) {
 }
 
 function buildActionCallout(snapshot: SingleTapeSnapshot): ActionCallout {
-  const columnRuleSummary = snapshot.columnRule
-    ? `${snapshot.columnRule.leftBit} + ${snapshot.columnRule.rightBit} + carry ${snapshot.columnRule.carryIn} = ${
-        snapshot.columnRule.carryOut === 1
-          ? `1${snapshot.columnRule.resultBit}`
-          : `${snapshot.columnRule.resultBit}`
-      }, so write ${snapshot.columnRule.resultBit} and carry ${snapshot.columnRule.carryOut}.`
-    : null;
+  const columnRuleSummary = buildColumnRuleSummary(snapshot);
 
   if (snapshot.transitionKind === "move") {
     const direction = snapshot.message.includes("left") ? "left" : "right";
@@ -219,6 +225,7 @@ export default function Home() {
 
   const tapePanelRef = useRef<HTMLDivElement | null>(null);
   const diagramPanelRef = useRef<HTMLDivElement | null>(null);
+  const diagramSummaryRef = useRef<HTMLDivElement | null>(null);
   const controlsRef = useRef<HTMLDivElement | null>(null);
 
   const simulatorGuideSteps = useMemo<GuideStep[]>(
@@ -229,6 +236,11 @@ export default function Home() {
               title: "This is the active state diagram",
               body: "The highlighted node shows the control state the machine is currently in, and the brighter arrow shows the last transition it just took.",
               target: diagramPanelRef,
+            },
+            {
+              title: "Use the register readout to stay oriented",
+              body: "This summary keeps the original left input, right input, carry rule, and current result progress visible so you can follow the computation without switching back to the tape.",
+              target: diagramSummaryRef,
             },
             {
               title: "Use the controls underneath",
@@ -750,6 +762,16 @@ export default function Home() {
   const activeMovementMs = isSkipping ? SKIP_MOVEMENT_MS : MOVE_ANIMATION_MS;
   const controlsLocked = isAnimatingMove || isSkipping || guidePhase !== null;
   const hasStarted = currentActionIndex > 0;
+  const diagramResultCells = snapshot.tape.slice(snapshot.resultStart);
+  const diagramResultBinary = diagramResultCells.join("").replace(/^_+/, "") || "0";
+  const diagramResultProgress = diagramResultCells
+    .map((cell) => (cell === "_" ? "·" : cell))
+    .join("");
+  const diagramRuleSummary =
+    buildColumnRuleSummary(snapshot) ??
+    (hasStarted
+      ? "The machine is still moving to the next read, restore, or write position."
+      : "Advance once to begin stepping through the first column.");
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-6 text-[var(--ink)] sm:px-6">
@@ -758,8 +780,48 @@ export default function Home() {
           {loadedInput.visualizationMode === "diagram" ? (
             <div
               ref={diagramPanelRef}
-              className="mx-auto flex w-full min-w-0 max-w-5xl flex-col items-center"
+              className="mx-auto flex w-full min-w-0 max-w-6xl flex-col items-center gap-5"
             >
+              <div
+                ref={diagramSummaryRef}
+                className="grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.3fr)]"
+              >
+                <div className="border border-[color:var(--rule)] bg-[rgba(251,246,232,0.9)] px-4 py-3 shadow-[0_8px_18px_rgba(70,52,21,0.08)]">
+                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
+                    Left Input
+                  </p>
+                  <p className="mt-2 font-[family-name:var(--font-mono)] text-xl font-semibold tracking-[0.16em] text-[var(--ink)]">
+                    {loadedInput.leftBinary}
+                  </p>
+                </div>
+                <div className="border border-[color:var(--rule)] bg-[rgba(251,246,232,0.9)] px-4 py-3 shadow-[0_8px_18px_rgba(70,52,21,0.08)]">
+                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
+                    Right Input
+                  </p>
+                  <p className="mt-2 font-[family-name:var(--font-mono)] text-xl font-semibold tracking-[0.16em] text-[var(--ink)]">
+                    {loadedInput.rightBinary}
+                  </p>
+                </div>
+                <div className="border border-[color:var(--rule)] bg-[rgba(251,246,232,0.9)] px-4 py-3 shadow-[0_8px_18px_rgba(70,52,21,0.08)]">
+                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
+                    Result So Far
+                  </p>
+                  <p className="mt-2 font-[family-name:var(--font-mono)] text-xl font-semibold tracking-[0.16em] text-[var(--ink)]">
+                    {diagramResultBinary}
+                  </p>
+                  <p className="mt-1 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive-soft)]">
+                    Zone: {diagramResultProgress}
+                  </p>
+                </div>
+                <div className="border border-[color:var(--rule)] bg-[rgba(251,246,232,0.9)] px-4 py-3 shadow-[0_8px_18px_rgba(70,52,21,0.08)]">
+                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
+                    Current Rule
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+                    {diagramRuleSummary}
+                  </p>
+                </div>
+              </div>
               <StateDiagram
                 key={diagramRefreshToken}
                 currentState={hasStarted ? snapshot.state : undefined}
