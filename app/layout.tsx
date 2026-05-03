@@ -14,8 +14,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Turing Machine Simulation",
-  description: "A mid-century computer lab style Turing machine simulator.",
+  title: "Turing Machine Simulator",
+  description: "A Turing machine simulator.",
 };
 
 export default function RootLayout({
