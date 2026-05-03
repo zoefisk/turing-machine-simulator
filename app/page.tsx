@@ -13,9 +13,9 @@ import {
 const MAX_INPUT_LENGTH = 9;
 const MOVE_ANIMATION_MS = 250;
 const MOVE_DWELL_MS = 250;
-const SKIP_MOVEMENT_MS = 140;
-const SKIP_MOVE_DWELL_MS = 80;
-const SKIP_STEP_MS = 50;
+const SKIP_MOVEMENT_MS = 95;
+const SKIP_MOVE_DWELL_MS = 45;
+const SKIP_STEP_MS = 30;
 
 type InputMode = "binary" | "decimal";
 type VisualizationMode = "diagram" | "tape";
