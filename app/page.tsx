@@ -738,7 +738,7 @@ export default function Home() {
             </div>
           )}
 
-          {actionCallout ? (
+          {actionCallout && !isSkipping ? (
             <div className="mx-auto mt-5 w-full max-w-3xl border border-[rgba(79,58,24,0.32)] bg-[rgba(251,246,232,0.96)] px-5 py-4 shadow-[0_14px_28px_rgba(52,38,14,0.12)]">
               <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
                 Current Action
