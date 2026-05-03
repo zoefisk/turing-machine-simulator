@@ -3,6 +3,12 @@
 import type { FormEvent, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  buildActionCallout,
+  buildColumnRuleSummary,
+  buildInitialPositionCallout,
+  pageContent,
+} from "@/app/pageContent";
 import SetupInputPanel from "@/components/SetupInputPanel";
 import StateDiagram from "@/components/StateDiagram";
 import Tape from "@/components/Tape";
@@ -49,25 +55,6 @@ type ActionCallout = {
   body: string;
   title: string;
 };
-
-function buildInitialPositionCallout(): ActionCallout {
-  return {
-    title: "Head Positioned For The First Column",
-    body: "The machine begins with its head resting on the least-significant bit of the left input. Advance again to watch it start marking and processing that first column.",
-  };
-}
-
-function buildColumnRuleSummary(snapshot: SingleTapeSnapshot) {
-  if (!snapshot.columnRule) {
-    return null;
-  }
-
-  return `${snapshot.columnRule.leftBit} + ${snapshot.columnRule.rightBit} + carry ${snapshot.columnRule.carryIn} = ${
-    snapshot.columnRule.carryOut === 1
-      ? `1${snapshot.columnRule.resultBit}`
-      : `${snapshot.columnRule.resultBit}`
-  }, so write ${snapshot.columnRule.resultBit} and carry ${snapshot.columnRule.carryOut}.`;
-}
 
 function buildSession(leftOperand: string, rightOperand: string): Session {
   const machine = createSingleTapeAdditionMachine(`${leftOperand}c${rightOperand}`);
@@ -146,58 +133,6 @@ function buildSpotlightStyle(target: HTMLElement | null) {
   };
 }
 
-function buildActionCallout(snapshot: SingleTapeSnapshot): ActionCallout {
-  const columnRuleSummary = buildColumnRuleSummary(snapshot);
-
-  if (snapshot.transitionKind === "move") {
-    const direction = snapshot.message.includes("left") ? "left" : "right";
-
-    return {
-      title: "Scanning Across The Tape",
-      body: `The head is traveling ${direction} to reach the next symbol it needs to inspect, restore, or write.`,
-    };
-  }
-
-  if (snapshot.transitionKind === "mark") {
-    return {
-      title: columnRuleSummary ? "Reading And Computing This Column" : "Marking The Current Bit",
-      body: columnRuleSummary
-        ? `${snapshot.message} The rule for this column is: ${columnRuleSummary}`
-        : snapshot.message,
-    };
-  }
-
-  if (snapshot.transitionKind === "write") {
-    return {
-      title: "Writing To The Result Zone",
-      body: columnRuleSummary
-        ? `${snapshot.message} ${columnRuleSummary}`
-        : snapshot.message,
-    };
-  }
-
-  if (snapshot.transitionKind === "restore") {
-    return {
-      title: "Restoring The Tape",
-      body: snapshot.message,
-    };
-  }
-
-  if (snapshot.transitionKind === "compute") {
-    return {
-      title: columnRuleSummary ? "Applying The Binary Addition Rule" : "Updating The Control State",
-      body: columnRuleSummary
-        ? `${snapshot.message} The rule for this column is: ${columnRuleSummary}`
-        : snapshot.message,
-    };
-  }
-
-  return {
-    title: "Machine Halted",
-    body: snapshot.message,
-  };
-}
-
 function sanitizeNumericInput(rawValue: string) {
   return rawValue.replace(/[^0-9]/g, "");
 }
@@ -240,40 +175,19 @@ export default function Home() {
   const simulatorGuideSteps = useMemo<GuideStep[]>(
     () =>
       loadedInput?.visualizationMode === "diagram"
-        ? [
-            {
-              title: "This is the active state diagram",
-              body: "The highlighted node shows the control state the machine is currently in, and the brighter arrow shows the last transition it just took.",
-              target: diagramPanelRef,
-            },
-            {
-              title: "Use the register readout to stay oriented",
-              body: "This summary keeps the original left input, right input, carry rule, and current result progress visible so you can follow the computation without switching back to the tape.",
-              target: diagramSummaryRef,
-            },
-            {
-              title: "Use the controls underneath",
-              body: "Advance steps through the machine, Skip runs the rest very quickly, Reset restarts this input, and Change Input takes you back to the setup screen.",
-              target: controlsRef,
-            },
-          ]
-        : [
-            {
-              title: "This is the whole working tape",
-              body: "The head moves across this one tape, rewrites symbols directly on it, and eventually leaves the final result on the right side.",
-              target: tapePanelRef,
-            },
-            {
-              title: "Watch for separators and temporary markers",
-              body: "The `c` splits the two inputs, the `|` starts the result zone, `x` marks the current left-side bit, and `y` marks the current right-side bit while the machine works.",
-              target: tapePanelRef,
-            },
-            {
-              title: "Use the controls underneath",
-              body: "Advance steps through the machine, Skip runs the rest very quickly, Reset restarts this input, and Change Input takes you back to the setup screen.",
-              target: controlsRef,
-            },
-          ],
+        ? pageContent.guide.diagramSteps.map((step, index) => ({
+            ...step,
+            target:
+              index === 0
+                ? diagramPanelRef
+                : index === 1
+                  ? diagramSummaryRef
+                  : controlsRef,
+          }))
+        : pageContent.guide.tapeSteps.map((step, index) => ({
+            ...step,
+            target: index < 2 ? tapePanelRef : controlsRef,
+          })),
     [loadedInput?.visualizationMode]
   );
 
@@ -698,8 +612,8 @@ export default function Home() {
   const diagramRuleSummary =
     buildColumnRuleSummary(snapshot) ??
     (hasStarted
-      ? "The machine is still moving to the next read, restore, or write position."
-      : "Advance once to begin stepping through the first column.");
+      ? pageContent.diagram.movingRule
+      : pageContent.diagram.idleRule);
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-6 text-[var(--ink)] sm:px-6">
@@ -716,7 +630,7 @@ export default function Home() {
               >
                 <div className="border border-[color:var(--rule)] bg-[rgba(251,246,232,0.9)] px-4 py-3 shadow-[0_8px_18px_rgba(70,52,21,0.08)]">
                   <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
-                    Left Input
+                    {pageContent.diagram.leftInputLabel}
                   </p>
                   <p className="mt-2 font-[family-name:var(--font-mono)] text-xl font-semibold tracking-[0.16em] text-[var(--ink)]">
                     {loadedInput.leftBinary}
@@ -724,7 +638,7 @@ export default function Home() {
                 </div>
                 <div className="border border-[color:var(--rule)] bg-[rgba(251,246,232,0.9)] px-4 py-3 shadow-[0_8px_18px_rgba(70,52,21,0.08)]">
                   <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
-                    Right Input
+                    {pageContent.diagram.rightInputLabel}
                   </p>
                   <p className="mt-2 font-[family-name:var(--font-mono)] text-xl font-semibold tracking-[0.16em] text-[var(--ink)]">
                     {loadedInput.rightBinary}
@@ -732,18 +646,18 @@ export default function Home() {
                 </div>
                 <div className="border border-[color:var(--rule)] bg-[rgba(251,246,232,0.9)] px-4 py-3 shadow-[0_8px_18px_rgba(70,52,21,0.08)]">
                   <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
-                    Result So Far
+                    {pageContent.diagram.resultSoFarLabel}
                   </p>
                   <p className="mt-2 font-[family-name:var(--font-mono)] text-xl font-semibold tracking-[0.16em] text-[var(--ink)]">
                     {diagramResultBinary}
                   </p>
                   <p className="mt-1 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive-soft)]">
-                    Zone: {diagramResultProgress}
+                    {pageContent.diagram.resultProgressLabel}: {diagramResultProgress}
                   </p>
                 </div>
                 <div className="border border-[color:var(--rule)] bg-[rgba(251,246,232,0.9)] px-4 py-3 shadow-[0_8px_18px_rgba(70,52,21,0.08)]">
                   <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
-                    Current Rule
+                    {pageContent.diagram.currentRuleLabel}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
                     {diagramRuleSummary}
@@ -763,8 +677,8 @@ export default function Home() {
               className="mx-auto flex w-full min-w-0 max-w-5xl flex-col items-center"
             >
               <Tape
-                label="Working Tape"
-                descriptor="left input c right input | result zone"
+                label={pageContent.tape.label}
+                descriptor={pageContent.tape.descriptor}
                 cells={snapshot.tape}
                 headIndex={hasStarted ? snapshot.head : -1}
                 highlightedIndex={hasStarted ? snapshot.highlightedIndex : undefined}
@@ -783,7 +697,7 @@ export default function Home() {
           {actionCallout && !isSkipping ? (
             <div className="mx-auto mt-5 w-full max-w-3xl border border-[rgba(79,58,24,0.32)] bg-[rgba(251,246,232,0.96)] px-5 py-4 shadow-[0_14px_28px_rgba(52,38,14,0.12)]">
               <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
-                Current Action
+                {pageContent.actionPanel.label}
               </p>
               <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">
                 {actionCallout.title}
@@ -803,14 +717,14 @@ export default function Home() {
               disabled={controlsLocked}
               className="machine-button machine-button--secondary rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Change Input
+              {pageContent.controls.changeInput}
             </button>
             <button
               onClick={handleReset}
               disabled={controlsLocked}
               className="machine-button machine-button--secondary rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Reset
+              {pageContent.controls.reset}
             </button>
             <button
               type="button"
@@ -821,35 +735,39 @@ export default function Home() {
               disabled={controlsLocked}
               className="machine-button machine-button--secondary rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Help
+              {pageContent.controls.help}
             </button>
             <button
               onClick={handleBack}
               disabled={currentActionIndex === 0 || controlsLocked}
               className="machine-button machine-button--secondary rounded-none px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Back
+              {pageContent.controls.back}
             </button>
             <button
               onClick={handleStep}
               disabled={hasHalted || controlsLocked}
               className="machine-button rounded-none px-5 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {isAnimatingMove ? "Moving..." : "Advance"}
+              {isAnimatingMove
+                ? pageContent.controls.moving
+                : pageContent.controls.advance}
             </button>
             <button
               onClick={handleSkip}
               disabled={hasHalted || controlsLocked}
               className="machine-button rounded-none px-5 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {isSkipping ? "Skipping..." : "Skip"}
+              {isSkipping
+                ? pageContent.controls.skipping
+                : pageContent.controls.skip}
             </button>
             {isSkipping ? (
               <button
                 onClick={handleFinishNow}
                 className="machine-button rounded-none px-5 py-2.5 font-[family-name:var(--font-mono)] text-xs font-bold uppercase tracking-[0.18em]"
               >
-                Give Me My Answer Now!
+                {pageContent.controls.finishNow}
               </button>
             ) : null}
           </div>
@@ -864,7 +782,10 @@ export default function Home() {
               ) : null}
               <div className="fixed bottom-5 right-5 z-50 w-[min(360px,calc(100vw-2rem))] border-2 border-[rgba(79,58,24,0.5)] bg-[rgba(251,246,232,0.99)] p-5 shadow-[0_24px_48px_rgba(52,38,14,0.3)]">
                 <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--olive)]">
-                  Guide {guideIndex + 1} / {currentGuideSteps.length}
+                  {pageContent.guide.stepLabel(
+                    guideIndex + 1,
+                    currentGuideSteps.length
+                  )}
                 </p>
                 <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">
                   {currentGuideStep?.title}
@@ -878,7 +799,7 @@ export default function Home() {
                     onClick={handleDismissGuide}
                     className="machine-button machine-button--secondary rounded-none px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] font-bold uppercase tracking-[0.18em]"
                   >
-                    Skip Tour
+                    {pageContent.guide.skipTour}
                   </button>
                   {guideIndex > 0 ? (
                     <button
@@ -886,7 +807,7 @@ export default function Home() {
                       onClick={handlePreviousGuide}
                       className="machine-button machine-button--secondary rounded-none px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] font-bold uppercase tracking-[0.18em]"
                     >
-                      Back
+                      {pageContent.guide.back}
                     </button>
                   ) : null}
                   <button
@@ -894,7 +815,9 @@ export default function Home() {
                     onClick={handleNextGuide}
                     className="machine-button rounded-none px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] font-bold uppercase tracking-[0.18em]"
                   >
-                    {guideIndex === currentGuideSteps.length - 1 ? "Done" : "Next"}
+                    {guideIndex === currentGuideSteps.length - 1
+                      ? pageContent.guide.done
+                      : pageContent.guide.next}
                   </button>
                 </div>
               </div>
