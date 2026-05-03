@@ -108,7 +108,6 @@ export default function Tape({
       if (!container || !cell) {
         return;
       }
-
       const leftBuffer = 48;
       const rightBuffer = 48;
       const cellLeft = cell.offsetLeft;
