@@ -706,7 +706,7 @@ export default function Home() {
           {loadedInput.visualizationMode === "diagram" ? (
             <div
               ref={diagramPanelRef}
-              className="mx-auto flex w-full max-w-5xl flex-col items-center"
+              className="mx-auto flex w-full min-w-0 max-w-5xl flex-col items-center"
             >
               <StateDiagram
                 key={diagramRefreshToken}
@@ -718,7 +718,7 @@ export default function Home() {
           ) : (
             <div
               ref={tapePanelRef}
-              className="mx-auto flex w-full max-w-5xl flex-col items-center"
+              className="mx-auto flex w-full min-w-0 max-w-5xl flex-col items-center"
             >
               <Tape
                 label="Working Tape"

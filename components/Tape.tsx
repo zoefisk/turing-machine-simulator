@@ -137,7 +137,7 @@ export default function Tape({
   }, [followHead, hasVisibleHead, movementMs, safeHeadIndex]);
 
   return (
-    <div className="space-y-2">
+    <div className="w-full min-w-0 space-y-2">
       {showMeta ? (
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -168,7 +168,7 @@ export default function Tape({
       >
         <div
           ref={scrollContainerRef}
-          className="relative w-full overflow-x-auto overflow-y-hidden"
+          className="tape-scroll relative w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-8"
         >
           <div
             ref={stripRef}
