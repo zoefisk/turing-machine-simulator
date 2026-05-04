@@ -16,6 +16,11 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Turing Machine Simulator",
   description: "A Turing machine simulator.",
+  icons: {
+    icon: "/icon.svg?v=2",
+    shortcut: "/icon.svg?v=2",
+    apple: "/icon.svg?v=2",
+  },
 };
 
 export default function RootLayout({
