@@ -1,4 +1,4 @@
-import type { SingleTapeSnapshot } from "@/lib/turing/singleTapeAdditionMachine";
+import type { BinaryAdditionSnapshot } from "@/lib/turing/binaryAdditionMachine";
 
 export const pageContent = {
   tape: {
@@ -73,7 +73,7 @@ export function buildInitialPositionCallout() {
   };
 }
 
-export function buildColumnRuleSummary(snapshot: SingleTapeSnapshot) {
+export function buildColumnRuleSummary(snapshot: BinaryAdditionSnapshot) {
   if (!snapshot.columnRule) {
     return null;
   }
@@ -85,7 +85,7 @@ export function buildColumnRuleSummary(snapshot: SingleTapeSnapshot) {
   }, so write ${snapshot.columnRule.resultBit} and carry ${snapshot.columnRule.carryOut}.`;
 }
 
-export function buildActionCallout(snapshot: SingleTapeSnapshot) {
+export function buildActionCallout(snapshot: BinaryAdditionSnapshot) {
   const columnRuleSummary = buildColumnRuleSummary(snapshot);
 
   if (snapshot.transitionKind === "move") {

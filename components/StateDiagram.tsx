@@ -13,10 +13,10 @@ import {
   type Node,
 } from "@xyflow/react";
 
-import type { SingleTapeState } from "@/lib/turing/singleTapeAdditionMachine";
+import type { BinaryAdditionState } from "@/lib/turing/binaryAdditionMachine";
 
 type StateDiagramProps = {
-  currentState?: SingleTapeState;
+  currentState?: BinaryAdditionState;
   lastTransition?: string;
   refreshToken?: string;
 };

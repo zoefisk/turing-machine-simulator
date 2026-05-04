@@ -14,6 +14,8 @@ type SetupInputPanelProps = {
   inputError: string;
   inputMode: InputMode;
   loadButtonLabel: string;
+  maxDecimalLength: number;
+  maxDecimalValue: string;
   maxInputLength: number;
   onInputModeChange: (mode: InputMode) => void;
   onLeftChange: (value: string) => void;
@@ -29,6 +31,8 @@ export default function SetupInputPanel({
   inputError,
   inputMode,
   loadButtonLabel,
+  maxDecimalLength,
+  maxDecimalValue,
   maxInputLength,
   onInputModeChange,
   onLeftChange,
@@ -41,14 +45,15 @@ export default function SetupInputPanel({
     <main className="flex min-h-screen items-center justify-center px-4 py-8 text-[var(--ink)] sm:px-6">
       <section className="lab-panel relative w-full max-w-xl px-6 py-7 sm:px-8 sm:py-8">
         <div className="space-y-3">
-          <p className="ink-kicker text-xs">Single-Tape Binary Addition</p>
+          <p className="ink-kicker text-xs">Turing Machine Binary Addition</p>
           <h1 className="text-3xl font-semibold uppercase tracking-[0.08em] sm:text-4xl">
             Enter Two Inputs
           </h1>
           <p className="max-w-lg text-sm leading-6 text-[var(--ink-soft)] sm:text-base">
-            Choose binary or decimal input. Decimal values will be converted
-            into binary before the tape loads. Each input must be under{" "}
-            {maxInputLength + 1} characters.
+            Choose binary or decimal input. Switching modes converts any
+            existing values in the text boxes. The tape supports inputs up to{" "}
+            {maxInputLength} binary characters, so decimal mode accepts values
+            from 0 to {maxDecimalValue}.
           </p>
         </div>
 
@@ -117,7 +122,7 @@ export default function SetupInputPanel({
               type="text"
               autoComplete="off"
               inputMode="numeric"
-              maxLength={maxInputLength}
+              maxLength={inputMode === "binary" ? maxInputLength : maxDecimalLength}
               value={draftInputs.left}
               onChange={(event) => onLeftChange(event.target.value)}
               className="mt-1.5 w-full border border-[color:var(--rule)] bg-[rgba(250,245,230,0.72)] px-3 py-3 font-[family-name:var(--font-mono)] text-lg tracking-[0.12em] text-[var(--ink)] outline-none placeholder:text-[var(--olive-soft)] focus:border-[rgba(168,125,50,0.72)]"
@@ -133,7 +138,7 @@ export default function SetupInputPanel({
               type="text"
               autoComplete="off"
               inputMode="numeric"
-              maxLength={maxInputLength}
+              maxLength={inputMode === "binary" ? maxInputLength : maxDecimalLength}
               value={draftInputs.right}
               onChange={(event) => onRightChange(event.target.value)}
               className="mt-1.5 w-full border border-[color:var(--rule)] bg-[rgba(250,245,230,0.72)] px-3 py-3 font-[family-name:var(--font-mono)] text-lg tracking-[0.12em] text-[var(--ink)] outline-none placeholder:text-[var(--olive-soft)] focus:border-[rgba(168,125,50,0.72)]"
