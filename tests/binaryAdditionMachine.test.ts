@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  createSingleTapeAdditionMachine,
-  type SingleTapeSnapshot,
-} from "../lib/turing/singleTapeAdditionMachine.ts";
+  createBinaryAdditionMachine,
+  type BinaryAdditionSnapshot,
+} from "../lib/turing/binaryAdditionMachine.ts";
 
 function runUntilHalt(input: string) {
-  const machine = createSingleTapeAdditionMachine(input);
-  const snapshots: SingleTapeSnapshot[] = [machine.getSnapshot()];
+  const machine = createBinaryAdditionMachine(input);
+  const snapshots: BinaryAdditionSnapshot[] = [machine.getSnapshot()];
 
   while (!machine.isHalted()) {
     snapshots.push(machine.step());
@@ -62,14 +62,14 @@ test("restores temporary markers before the machine halts", () => {
 });
 
 test("uses x only for the left input and y only for the right input", () => {
-  const machine = createSingleTapeAdditionMachine("101c11");
+  const machine = createBinaryAdditionMachine("101c11");
 
   const firstLeftMark = machine.step();
   assert.equal(firstLeftMark.transitionKind, "mark");
   assert.equal(firstLeftMark.tape.slice(0, 3).includes("x"), true);
   assert.equal(firstLeftMark.tape.slice(4, 6).includes("x"), false);
 
-  let rightMark: SingleTapeSnapshot | undefined;
+  let rightMark: BinaryAdditionSnapshot | undefined;
 
   while (!machine.isHalted()) {
     const snapshot = machine.step();
@@ -86,8 +86,8 @@ test("uses x only for the left input and y only for the right input", () => {
 });
 
 test("records the binary-addition rule for a computed column", () => {
-  const machine = createSingleTapeAdditionMachine("1c1");
-  let computedColumn: SingleTapeSnapshot | undefined;
+  const machine = createBinaryAdditionMachine("1c1");
+  let computedColumn: BinaryAdditionSnapshot | undefined;
 
   while (!machine.isHalted()) {
     const snapshot = machine.step();

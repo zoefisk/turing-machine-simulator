@@ -13,11 +13,14 @@ import SetupInputPanel from "@/components/SetupInputPanel";
 import StateDiagram from "@/components/StateDiagram";
 import Tape from "@/components/Tape";
 import {
-  createSingleTapeAdditionMachine,
-  type SingleTapeSnapshot,
-} from "@/lib/turing/singleTapeAdditionMachine";
+  createBinaryAdditionMachine,
+  type BinaryAdditionSnapshot,
+} from "@/lib/turing/binaryAdditionMachine";
 
-const MAX_INPUT_LENGTH = 9;
+const MAX_INPUT_LENGTH = 10;
+const MAX_DECIMAL_VALUE =
+  (BigInt(1) << BigInt(MAX_INPUT_LENGTH)) - BigInt(1);
+const MAX_DECIMAL_LENGTH = MAX_DECIMAL_VALUE.toString().length;
 const MOVE_ANIMATION_MS = 250;
 const MOVE_DWELL_MS = 250;
 const SKIP_MOVEMENT_MS = 95;
@@ -28,8 +31,8 @@ type InputMode = "binary" | "decimal";
 type VisualizationMode = "diagram" | "tape";
 
 type Session = {
-  machine: ReturnType<typeof createSingleTapeAdditionMachine>;
-  snapshot: SingleTapeSnapshot;
+  machine: ReturnType<typeof createBinaryAdditionMachine>;
+  snapshot: BinaryAdditionSnapshot;
 };
 
 type LoadedInput = {
@@ -57,7 +60,7 @@ type ActionCallout = {
 };
 
 function buildSession(leftOperand: string, rightOperand: string): Session {
-  const machine = createSingleTapeAdditionMachine(`${leftOperand}c${rightOperand}`);
+  const machine = createBinaryAdditionMachine(`${leftOperand}c${rightOperand}`);
 
   return {
     machine,
@@ -70,7 +73,7 @@ function buildSessionAtStepCount(
   rightOperand: string,
   stepCount: number
 ): Session {
-  const machine = createSingleTapeAdditionMachine(`${leftOperand}c${rightOperand}`);
+  const machine = createBinaryAdditionMachine(`${leftOperand}c${rightOperand}`);
   let snapshot = machine.getSnapshot();
 
   for (let stepIndex = 0; stepIndex < stepCount; stepIndex += 1) {
@@ -90,16 +93,16 @@ function convertInput(rawValue: string, mode: InputMode): InputConversionResult 
     return { error: "Enter a value in both boxes.", kind: "error" };
   }
 
-  if (trimmedValue.length > MAX_INPUT_LENGTH) {
-    return {
-      error: `Keep each input under ${MAX_INPUT_LENGTH + 1} characters.`,
-      kind: "error",
-    };
-  }
-
   if (mode === "binary") {
     if (!/^[01]+$/.test(trimmedValue)) {
       return { error: "Binary mode only accepts 0s and 1s.", kind: "error" };
+    }
+
+    if (trimmedValue.length > MAX_INPUT_LENGTH) {
+      return {
+        error: `Keep each binary input at ${MAX_INPUT_LENGTH} characters or fewer.`,
+        kind: "error",
+      };
     }
 
     return { binary: trimmedValue, kind: "success" };
@@ -112,8 +115,17 @@ function convertInput(rawValue: string, mode: InputMode): InputConversionResult 
     };
   }
 
+  const binaryValue = BigInt(trimmedValue).toString(2);
+
+  if (binaryValue.length > MAX_INPUT_LENGTH) {
+    return {
+      error: `Decimal mode accepts values up to ${MAX_DECIMAL_VALUE.toString()} so the converted binary still fits within ${MAX_INPUT_LENGTH} characters.`,
+      kind: "error",
+    };
+  }
+
   return {
-    binary: BigInt(trimmedValue).toString(2),
+    binary: binaryValue,
     kind: "success",
   };
 }
@@ -133,8 +145,65 @@ function buildSpotlightStyle(target: HTMLElement | null) {
   };
 }
 
-function sanitizeNumericInput(rawValue: string) {
-  return rawValue.replace(/[^0-9]/g, "");
+function sanitizeInputForMode(rawValue: string, mode: InputMode) {
+  return mode === "binary"
+    ? rawValue.replace(/[^01]/g, "")
+    : rawValue.replace(/[^0-9]/g, "");
+}
+
+function convertDraftValue(
+  rawValue: string,
+  fromMode: InputMode,
+  toMode: InputMode
+): { kind: "success"; value: string } | { error: string; kind: "error" } {
+  const trimmedValue = rawValue.trim();
+
+  if (!trimmedValue) {
+    return { kind: "success", value: "" };
+  }
+
+  if (fromMode === toMode) {
+    return { kind: "success", value: trimmedValue };
+  }
+
+  if (fromMode === "binary") {
+    if (!/^[01]+$/.test(trimmedValue)) {
+      return { error: "Binary mode only accepts 0s and 1s.", kind: "error" };
+    }
+
+    if (trimmedValue.length > MAX_INPUT_LENGTH) {
+      return {
+        error: `Keep each binary input at ${MAX_INPUT_LENGTH} characters or fewer.`,
+        kind: "error",
+      };
+    }
+
+    return {
+      kind: "success",
+      value: BigInt(`0b${trimmedValue}`).toString(10),
+    };
+  }
+
+  if (!/^\d+$/.test(trimmedValue)) {
+    return {
+      error: "Decimal mode only accepts whole numbers.",
+      kind: "error",
+    };
+  }
+
+  const binaryValue = BigInt(trimmedValue).toString(2);
+
+  if (binaryValue.length > MAX_INPUT_LENGTH) {
+    return {
+      error: `Decimal mode accepts values up to ${MAX_DECIMAL_VALUE.toString()} so the converted binary still fits within ${MAX_INPUT_LENGTH} characters.`,
+      kind: "error",
+    };
+  }
+
+  return {
+    kind: "success",
+    value: binaryValue,
+  };
 }
 
 export default function Home() {
@@ -201,6 +270,32 @@ export default function Home() {
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  function handleInputModeChange(nextMode: InputMode) {
+    if (nextMode === inputMode) {
+      return;
+    }
+
+    const leftConversion = convertDraftValue(draftInputs.left, inputMode, nextMode);
+    const rightConversion = convertDraftValue(draftInputs.right, inputMode, nextMode);
+
+    if (leftConversion.kind === "error") {
+      setInputError(leftConversion.error);
+      return;
+    }
+
+    if (rightConversion.kind === "error") {
+      setInputError(rightConversion.error);
+      return;
+    }
+
+    setDraftInputs({
+      left: leftConversion.value,
+      right: rightConversion.value,
+    });
+    setInputError("");
+    setInputMode(nextMode);
+  }
 
   function resetActionHistory() {
     transitionCountRef.current = 0;
@@ -575,18 +670,20 @@ export default function Home() {
         inputError={inputError}
         inputMode={inputMode}
         loadButtonLabel={loadButtonLabel}
+        maxDecimalLength={MAX_DECIMAL_LENGTH}
+        maxDecimalValue={MAX_DECIMAL_VALUE.toString()}
         maxInputLength={MAX_INPUT_LENGTH}
-        onInputModeChange={setInputMode}
+        onInputModeChange={handleInputModeChange}
         onLeftChange={(value) =>
           setDraftInputs((currentValue) => ({
             ...currentValue,
-            left: sanitizeNumericInput(value),
+            left: sanitizeInputForMode(value, inputMode),
           }))
         }
         onRightChange={(value) =>
           setDraftInputs((currentValue) => ({
             ...currentValue,
-            right: sanitizeNumericInput(value),
+            right: sanitizeInputForMode(value, inputMode),
           }))
         }
         onSubmit={handleApplyInput}
