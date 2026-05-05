@@ -17,9 +17,9 @@ export const metadata: Metadata = {
   title: "Turing Machine Simulator",
   description: "A Turing machine simulator.",
   icons: {
-    icon: "/icon.svg?v=2",
-    shortcut: "/icon.svg?v=2",
-    apple: "/icon.svg?v=2",
+    icon: "/favicon.ico?v=3",
+    shortcut: "/favicon.ico?v=3",
+    apple: "/icon.svg?v=3",
   },
 };
 
